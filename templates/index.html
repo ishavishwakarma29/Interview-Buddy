@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>InterviewBuddy</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, system-ui, sans-serif; background: #f4f5f7; color: #1d1d1f; }
+    .app { max-width: 720px; margin: 0 auto; height: 100vh; display: flex; flex-direction: column; }
+    header { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; }
+    header h1 { font-size: 20px; margin: 0; }
+    header p { margin: 2px 0 0; font-size: 13px; color: #6e6e73; }
+    #notes { margin: 0 20px 8px; padding: 10px 14px; background: #fff7e0; border-radius: 10px; font-size: 13px; display: none; }
+    #chat { flex: 1; overflow-y: auto; padding: 8px 20px; }
+    .msg { max-width: 85%; padding: 10px 14px; border-radius: 14px; margin: 8px 0; white-space: pre-wrap; line-height: 1.45; }
+    .user { background: #0a66ff; color: #fff; margin-left: auto; border-bottom-right-radius: 4px; }
+    .bot { background: #fff; border-bottom-left-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+    .summary { background: #e8f7ee; }
+    .thinking { color: #6e6e73; font-style: italic; }
+    form { display: flex; gap: 8px; padding: 12px 20px 20px; }
+    textarea { flex: 1; resize: none; padding: 12px; border: 1px solid #d2d2d7; border-radius: 12px; font: inherit; height: 64px; }
+    button { border: 0; border-radius: 12px; padding: 0 18px; font: inherit; font-weight: 600; cursor: pointer; background: #0a66ff; color: #fff; }
+    button:disabled { opacity: .5; cursor: default; }
+    #end { background: #fff; color: #1d1d1f; border: 1px solid #d2d2d7; padding: 8px 14px; }
+  </style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>InterviewBuddy</h1>
+      <p>Your practice interviewer. Say hi to start.</p>
+    </div>
+    <button id="end" type="button">End session</button>
+  </header>
+  <div id="notes"></div>
+  <div id="chat"></div>
+  <form id="form">
+    <textarea id="input" placeholder="Type your answer... (Enter to send, Shift+Enter for a new line)"></textarea>
+    <button id="send">Send</button>
+  </form>
+</div>
+
+<script>
+  const chat = document.getElementById("chat");
+  const input = document.getElementById("input");
+  const send = document.getElementById("send");
+  const end = document.getElementById("end");
+  let history = [];   // the whole conversation, sent to the server every turn
+  let notes = "";     // what Backboard remembers from past sessions
+
+  function addMessage(text, cls) {
+    const div = document.createElement("div");
+    div.className = "msg " + cls;
+    div.textContent = text;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+    return div;
+  }
+
+  async function post(url, body) {
+    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!res.ok) throw new Error("Server error " + res.status);
+    return res.json();
+  }
+
+  function setBusy(busy) { send.disabled = end.disabled = input.disabled = busy; }
+
+  async function startSession() {
+    setBusy(true);
+    try {
+      notes = (await post("/api/start", {})).notes;
+      if (notes) {
+        const box = document.getElementById("notes");
+        box.textContent = "📝 From your last session: " + notes;
+        box.style.display = "block";
+      }
+    } catch (e) { addMessage("Couldn't load past notes, starting fresh. (" + e.message + ")", "bot thinking"); }
+    setBusy(false);
+    input.focus();
+  }
+
+  document.getElementById("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+    addMessage(text, "user");
+    history.push({ role: "user", content: text });
+    const waiting = addMessage("InterviewBuddy is thinking...", "bot thinking");
+    setBusy(true);
+    try {
+      const { reply } = await post("/api/chat", { history, notes });
+      waiting.remove();
+      addMessage(reply, "bot");
+      history.push({ role: "assistant", content: reply });
+    } catch (err) {
+      waiting.textContent = "Something went wrong: " + err.message + ". Try sending again.";
+      history.pop();
+    }
+    setBusy(false);
+    input.focus();
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send.click(); }
+  });
+
+  end.addEventListener("click", async () => {
+    if (history.length === 0) return;
+    const waiting = addMessage("Writing your session summary...", "bot thinking");
+    setBusy(true);
+    try {
+      const { summary } = await post("/api/end", { history, notes });
+      waiting.remove();
+      addMessage(summary + "\n\n✅ Saved. I'll remember this next time.", "bot summary");
+      history = [];
+      notes = summary;
+      setBusy(false);
+      send.disabled = input.disabled = false;
+    } catch (err) {
+      waiting.textContent = "Couldn't save the summary: " + err.message;
+      setBusy(false);
+    }
+  });
+
+  startSession();
+</script>
+</body>
+</html>

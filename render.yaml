@@ -1,0 +1,23 @@
+# Render reads this file to set up the web service automatically ("Blueprint").
+services:
+  - type: web
+    name: interviewbuddy
+    runtime: python
+    plan: standard            # 2 GB RAM; smaller plans run out of memory loading the tokenizer
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --workers 1 --threads 4 --timeout 120 --bind 0.0.0.0:$PORT
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.11
+      # Secrets: Render asks you to paste these when you create the service.
+      - key: TINKER_API_KEY
+        sync: false
+      - key: BACKBOARD_API_KEY
+        sync: false
+      - key: BACKBOARD_ASSISTANT_ID
+        sync: false
+      - key: MODEL_PATH
+        sync: false
+      - key: BASE_MODEL
+        sync: false
