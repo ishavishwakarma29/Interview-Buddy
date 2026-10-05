@@ -70,6 +70,9 @@ interviewbuddy/
 ```
 
 ---
+# Project Demo
+
+[![Interview buddy demo](https://img.youtube.com/vi/G9_nsJ1eNF0/0.jpg)](https://www.youtube.com/watch?v=G9_nsJ1eNF0)
 
 ## Run it yourself
 
