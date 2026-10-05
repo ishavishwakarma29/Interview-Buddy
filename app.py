@@ -48,7 +48,7 @@ threading.Thread(target=_loop.run_forever, daemon=True).start()
 
 def run_async(coro):
     """Run an async function in the background, returning a Future."""
-    return asyncio.run_coroutine_threadsafe(coro, _loop)
+    return asyncio.run_coroutine_threadsafe(coro, _loop).result()
 
 def get_assistant_id():
     """Use BACKBOARD_ASSISTANT_ID if set; otherwise create one assistant and save its ID to .env."""
